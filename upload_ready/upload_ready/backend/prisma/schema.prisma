@@ -1,0 +1,127 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum TransferStatus {
+  NONE
+  PENDING
+  APPROVED
+  FROZEN
+  EXECUTED
+  REJECTED
+}
+
+model User {
+  id            String    @id @default(cuid())
+  walletAddress String?   @unique
+  email         String?   @unique
+  displayName   String?
+  role          UserRole  @default(USER)
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  landsCreated  Land[]    @relation("LandCreator")
+  transferJobs  TransferRequest[]
+  auditLogs     AuditLog[]
+}
+
+model Land {
+  id                String            @id @default(cuid())
+  onChainLandId     BigInt            @unique
+  currentOwner      String
+  metadataURI       String
+  listedPrice       Decimal?          @db.Decimal(18, 2)
+  mintedTxHash      String?
+  lastTransferAt    DateTime?
+  isFlagged         Boolean           @default(false)
+  createdByUserId   String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  createdBy         User?             @relation("LandCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  transferRequests  TransferRequest[]
+
+  @@index([currentOwner])
+  @@index([createdAt])
+}
+
+model TransferRequest {
+  id               String         @id @default(cuid())
+  landId           String
+  requesterUserId  String?
+  fromAddress      String
+  toAddress        String
+  status           TransferStatus @default(PENDING)
+  riskScore        Int?
+  riskLevel        RiskLevel?
+  aiSuggestedState TransferStatus?
+  requestTxHash    String?
+  validateTxHash   String?
+  approveTxHash    String?
+  executeTxHash    String?
+  freezeTxHash     String?
+  requestedAt      DateTime       @default(now())
+  validatedAt      DateTime?
+  decidedAt        DateTime?
+  executedAt       DateTime?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  land             Land           @relation(fields: [landId], references: [id], onDelete: Cascade)
+  requester        User?          @relation(fields: [requesterUserId], references: [id], onDelete: SetNull)
+  riskAssessments  RiskAssessment[]
+  auditLogs        AuditLog[]
+
+  @@index([landId, createdAt])
+  @@index([status, createdAt])
+}
+
+model RiskAssessment {
+  id                String          @id @default(cuid())
+  transferRequestId String
+  provider          String          @default("internal")
+  model             String?
+  score             Int
+  riskLevel         RiskLevel
+  suggestedAction   TransferStatus
+  features          Json?
+  rawOutput         Json?
+  latencyMs         Int?
+  createdAt         DateTime        @default(now())
+  transferRequest   TransferRequest @relation(fields: [transferRequestId], references: [id], onDelete: Cascade)
+
+  @@index([transferRequestId, createdAt])
+}
+
+model AuditLog {
+  id                String           @id @default(cuid())
+  actorUserId       String?
+  transferRequestId String?
+  action            String
+  entityType        String
+  entityId          String
+  summary           String?
+  txHash            String?
+  metadata          Json?
+  createdAt         DateTime         @default(now())
+  actorUser         User?            @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+  transferRequest   TransferRequest? @relation(fields: [transferRequestId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}

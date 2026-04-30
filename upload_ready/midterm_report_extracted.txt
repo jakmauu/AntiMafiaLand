@@ -1,0 +1,786 @@
+PAGES: 9
+
+
+
+===== PAGE 1 =====
+ANTI-MAFIA  LAND  SYSTEM  (LAND  REGISTRY  &  
+BEHAVIORAL
+ 
+DETECTION)
+ 
+  Disusun  Oleh  :  Muhammad  Hilmy  Mahardika  -  2306267006  Muhamad  Dzaky  Maulana  -  2306264401  Ibnu  Zaky  Fauzi  -  2306161870   
+PROGRAM  STUDI  TEKNIK  KOMPUTER  FAKULTAS  TEKNIK  UNIVERSITAS  INDONESIA  
+
+
+===== PAGE 2 =====
+BAB  I  PENDAHULUAN  
+1.1  Latar  Belakang  
+Permasalahan  mafia  tanah  masih  menjadi  isu  besar  yang  berdampak  langsung  pada  masyarakat.  
+Banyak
+ 
+kasus
+ 
+menunjukkan
+ 
+adanya
+ 
+manipulasi
+ 
+data
+ 
+kepemilikan,
+ 
+pemalsuan
+ 
+dokumen,
+ 
+hingga
+ 
+transaksi
+ 
+ilegal
+ 
+yang
+ 
+menyebabkan
+ 
+sengketa
+ 
+berkepanjangan.
+ 
+Sistem
+ 
+pertanahan
+ 
+yang
+ 
+masih
+ 
+bersifat
+ 
+konvensional
+ 
+memiliki
+ 
+beberapa
+ 
+kelemahan
+ 
+utama,
+ 
+seperti
+ 
+data
+ 
+yang
+ 
+dapat
+ 
+diubah,
+ 
+kurangnya
+ 
+transparansi
+ 
+riwayat
+ 
+kepemilikan,
+ 
+serta
+ 
+proses
+ 
+verifikasi
+ 
+yang
+ 
+lambat
+ 
+dan
+ 
+bergantung
+ 
+pada
+ 
+pihak
+ 
+tertentu.
+ 
+Melihat  permasalahan  tersebut,  teknologi  blockchain  menawarkan  solusi  dengan  konsep  
+immutable
+ 
+ledger,
+ 
+yaitu
+ 
+pencatatan
+ 
+data
+ 
+yang
+ 
+tidak
+ 
+dapat
+ 
+diubah
+ 
+setelah
+ 
+tersimpan.
+ 
+Hal
+ 
+ini
+ 
+membuat
+ 
+seluruh
+ 
+riwayat
+ 
+transaksi
+ 
+menjadi
+ 
+transparan
+ 
+dan
+ 
+dapat
+ 
+ditelusuri
+ 
+dengan
+ 
+jelas.
+ 
+Selain
+ 
+itu,
+ 
+penggunaan
+ 
+smart
+ 
+contract
+ 
+memungkinkan
+ 
+proses
+ 
+validasi
+ 
+dan
+ 
+eksekusi
+ 
+transaksi
+ 
+dilakukan
+ 
+secara
+ 
+otomatis
+ 
+tanpa
+ 
+perlu
+ 
+intervensi
+ 
+manual.
+ 
+Mengacu  pada  konsep  sistem  blockchain  seperti  pada  proyek  Wills-Chain,  penggunaan  smart  
+contract
+ 
+dapat
+ 
+memastikan
+ 
+bahwa
+ 
+setiap
+ 
+proses
+ 
+berjalan
+ 
+sesuai
+ 
+aturan
+ 
+yang
+ 
+telah
+ 
+ditentukan
+ 
+dan
+ 
+tidak
+ 
+dapat
+ 
+dimanipulasi
+ 
+.
+ 
+Untuk  meningkatkan  keamanan,  sistem  ini  dikombinasikan  dengan  Artificial  Intelligence  (AI)  
+yang
+ 
+berfungsi
+ 
+sebagai
+ 
+deteksi
+ 
+perilaku
+ 
+transaksi.
+ 
+Sistem
+ 
+tidak
+ 
+hanya
+ 
+mencatat
+ 
+data,
+ 
+tetapi
+ 
+juga
+ 
+menganalisis
+ 
+pola
+ 
+aktivitas
+ 
+untuk
+ 
+mendeteksi
+ 
+indikasi
+ 
+kecurangan.
+ 
+Oleh  karena  itu,  dikembangkan  Anti-Mafia  Land  System,  yaitu  sistem  registrasi  tanah  berbasis  
+blockchain
+ 
+yang
+ 
+dilengkapi
+ 
+dengan
+ 
+fitur
+ 
+deteksi
+ 
+perilaku
+ 
+untuk
+ 
+menciptakan
+ 
+ekosistem
+ 
+pertanahan
+ 
+yang
+ 
+lebih
+ 
+transparan,
+ 
+aman,
+ 
+dan
+ 
+terpercaya.
+ 
+1.2  Tujuan  
+Tujuan  dari  pengembangan  sistem  ini  adalah:  
+●  Menciptakan  sistem  pencatatan  kepemilikan  tanah  yang  transparan  dan  tidak  dapat  
+dimanipulasi
+ ●  Mengurangi  risiko  penipuan  dan  praktik  mafia  tanah  ●  Mengotomatisasi  proses  transaksi  melalui  smart  contract  ●  Mendeteksi  aktivitas  mencurigakan  menggunakan  analisis  pola  transaksi  ●  Meningkatkan  kepercayaan  dalam  sistem  pertanahan  
+
+===== PAGE 3 =====
+1.3  Batasan  Masalah  
+Agar  pengembangan  sistem  lebih  terarah,  terdapat  beberapa  batasan:  
+●  Sistem  hanya  mencakup  registrasi  dan  transfer  kepemilikan  tanah  ●  AI  digunakan  sebagai  pemberi  skor  risiko,  bukan  pengambil  keputusan  akhir  ●  Sistem  masih  dalam  bentuk  prototype  (belum  terintegrasi  sistem  pemerintah  secara  
+penuh)
+ ●  Tidak  membahas  aspek  hukum  secara  mendalam  ●  Fokus  pada  implementasi  berbasis  Ethereum  
+1.4  Software  dan  Hardware  yang  Digunakan  
+Software  
+●  Ethereum  (Blockchain  Platform)  ●  Solidity  +  OpenZeppelin  (Smart  Contract  Development)  ●  ERC-721  (Representasi  aset  tanah  sebagai  NFT)  ●  Node.js  (Backend)  ●  React.js  (Frontend)  ●  Hardhat  (Testing  &  Deployment)  ●  Metamask  (Wallet  &  transaksi)  ●  Visual  Studio  Code  
+Hardware  
+●  Laptop/PC  dengan  spesifikasi:  ○  RAM  minimal  8  GB  ○  Storage  minimal  256  GB  ○  Processor  minimal  Intel  i5  /  Ryzen  5  ●  Optional:  ○  Server/cloud  untuk  backend  dan  AI  
+  
+ 
+  
+
+===== PAGE 4 =====
+BAB  II  PERENCANAAN  PROJECT  DAN  PERANCANGAN  SOLUSI  
+SMART
+ 
+CONTRACT
+ 
+2.1  Perencanaan  Project  
+Dalam  pengembangan  Anti-Mafia  Land  System,  perencanaan  dilakukan  secara  bertahap  agar  
+sistem
+ 
+dapat
+ 
+berjalan
+ 
+dengan
+ 
+baik.
+ 
+1.  Identifikasi  Scope  
+●  Membangun  sistem  registrasi  tanah  berbasis  blockchain  ●  Mengembangkan  smart  contract  untuk  validasi  transaksi  ●  Mengintegrasikan  AI  untuk  deteksi  transaksi  mencurigakan  
+2.  Identifikasi  Stakeholder  
+Pihak  yang  terlibat  dalam  sistem  ini:  
+●  Pemilik  tanah  ●  Pembeli  tanah  ●  Notaris  ●  Pemerintah  (sebagai  validator)  ●  Sistem  AI  ●  Tim  developer  
+3.  Timeline  Pengembangan  
+Tahapan  pengerjaan  project:  
+1.  Analisis  kebutuhan  sistem  2.  Perancangan  arsitektur  3.  Pengembangan  smart  contract  4.  Integrasi  AI  risk  scoring  5.  Pengembangan  backend  dan  frontend  6.  Testing  dan  evaluasi  
+  
+
+===== PAGE 5 =====
+2.2  Arsitektur  Sistem  
+Sistem  dibagi  menjadi  beberapa  layer:  
+1.  Blockchain  Layer  
+Menyimpan
+ 
+data
+ 
+kepemilikan
+ 
+tanah
+ 
+secara
+ 
+permanen
+ 2.  Smart  Contract  Layer  
+Mengatur
+ 
+logika
+ 
+transaksi
+ 
+dan
+ 
+validasi
+ 3.  AI  Detection  Layer  
+Menganalisis
+ 
+pola
+ 
+transaksi
+ 
+dan
+ 
+memberikan
+ 
+skor
+ 
+risiko
+ 4.  Application  Layer  
+Interface
+ 
+pengguna
+ 
+berbasis
+ 
+web
+ 
+ 
+2.3
+ 
+Perancangan
+ 
+Smart
+ 
+Contract
+ 
+1.  Struktur  Data   struct  Land  {      uint256  tokenId;      address  owner;      string  metadataURI;      uint256  lastTransferTime;      uint256  price;  }  
+ 
+2.  Fungsi  Utama  
+a.  Registrasi  Tanah  
+●  Digunakan  untuk  mendaftarkan  tanah  sebagai  NFT  (ERC-721).  ●  function  registerLand(address  owner,  string  memory  metadataURI)  
+b.  Transfer  Kepemilikan  
+●  Digunakan  untuk  memindahkan  kepemilikan  tanah.  ●  function  transferLand(address  to,  uint256  tokenId)     
+
+===== PAGE 6 =====
+ 
+c.  Validasi  Risiko  
+●  Digunakan  untuk  menentukan  apakah  transaksi  aman  atau  tidak.  ●  function  validateRisk(uint256  riskScore)  
+2.4  Mekanisme  Dynamic  Risk  Scoring  
+Sistem  AI  akan  menganalisis  beberapa  parameter:  
+●  Frekuensi  transaksi  dalam  waktu  singkat  ●  Perubahan  harga  yang  tidak  wajar  ●  Hubungan  antar  wallet  ●  Pola  flipping  aset  
+Kategori  Risiko  
+●  Low  Risk  →  transaksi  langsung  disetujui  ●  Medium  Risk  →  membutuhkan  verifikasi  tambahan  (misalnya  notaris)  ●  High  Risk  →  transaksi  dibekukan  sementara  
+2.5  Mekanisme  Smart  Contract  
+Smart  contract  akan  bertindak  sebagai  pengontrol  utama:  
+●  Jika  risiko  rendah  →  otomatis  approve  ●  Jika  risiko  sedang  →  menunggu  persetujuan  tambahan  ●  Jika  risiko  tinggi  →  transaksi  ditolak  atau  dibekukan  
+Pendekatan  ini  mirip  dengan  sistem  validasi  multi-pihak  seperti  pada  Wills-Chain,  namun  
+ditambahkan
+ 
+analisis
+ 
+AI
+ 
+untuk
+ 
+meningkatkan
+ 
+keamanan
+ 
+.
+ 
+2.6  Keamanan  Sistem  
+Untuk  menjaga  keamanan  sistem:  
+●  Menggunakan  OpenZeppelin  (standar  keamanan  smart  contract)  ●  Mencegah  serangan  reentrancy  ●  Validasi  ownership  sebelum  transaksi  ●  Penyimpanan  data  secara  immutable  di  blockchain  
+
+===== PAGE 7 =====
+ 
+2.7  Alur  Sistem  
+ 
+               
+
+
+===== PAGE 8 =====
+               
+BAB  III  PENUTUP  
+3.1  Conclusion  
+Anti-Mafia  Land  System  merupakan  solusi  berbasis  blockchain  yang  dirancang  untuk  mengatasi  
+permasalahan
+ 
+manipulasi
+ 
+data
+ 
+dan
+ 
+praktik
+ 
+mafia
+ 
+tanah
+ 
+melalui
+ 
+pendekatan
+ 
+teknologi
+ 
+yang
+ 
+lebih
+ 
+transparan
+ 
+dan
+ 
+aman.
+ 
+Dengan
+ 
+memanfaatkan
+ 
+blockchain
+ 
+sebagai
+ 
+sistem
+ 
+pencatatan
+ 
+yang
+ 
+bersifat
+ 
+immutable,
+ 
+seluruh
+ 
+riwayat
+ 
+kepemilikan
+ 
+tanah
+ 
+dapat
+ 
+disimpan
+ 
+secara
+ 
+permanen
+ 
+dan
+ 
+tidak
+ 
+dapat
+ 
+diubah,
+ 
+sehingga
+ 
+meningkatkan
+ 
+kepercayaan
+ 
+terhadap
+ 
+data
+ 
+yang
+ 
+tersimpan.
+ 
+Selain  itu,  integrasi  Artificial  Intelligence  dalam  bentuk  behavioral  detection  memberikan  
+kemampuan
+ 
+tambahan
+ 
+untuk
+ 
+menganalisis
+ 
+pola
+ 
+transaksi
+ 
+secara
+ 
+real-time
+ 
+dan
+ 
+mendeteksi
+ 
+aktivitas
+ 
+yang
+ 
+mencurigakan.
+ 
+Dengan
+ 
+adanya
+ 
+smart
+ 
+contract,
+ 
+sistem
+ 
+mampu
+ 
+secara
+ 
+otomatis
+ 
+mengambil
+ 
+tindakan
+ 
+berdasarkan
+ 
+tingkat
+ 
+risiko
+ 
+transaksi,
+ 
+seperti
+ 
+menyetujui,
+ 
+menunda,
+ 
+atau
+ 
+membekukan
+ 
+proses
+ 
+transfer.
+ 
+Kombinasi
+ 
+teknologi
+ 
+ini
+ 
+menjadikan
+ 
+sistem
+ 
+lebih
+ 
+adaptif,
+ 
+efisien,
+ 
+dan
+ 
+sulit
+ 
+dimanipulasi
+ 
+dibandingkan
+ 
+sistem
+ 
+konvensional.
+ 
+ 
+3.2  Penutup  
+Pengembangan  Anti-Mafia  Land  System  menjadi  langkah  awal  dalam  menciptakan  sistem  
+pertanahan
+ 
+yang
+ 
+lebih
+ 
+modern,
+ 
+transparan,
+ 
+dan
+ 
+terpercaya.
+ 
+Meskipun
+ 
+masih
+ 
+dalam
+ 
+tahap
+ 
+pengembangan
+ 
+prototype,
+ 
+sistem
+ 
+ini
+ 
+menunjukkan
+ 
+potensi
+ 
+besar
+ 
+untuk
+ 
+diterapkan
+ 
+dalam
+ 
+skala
+ 
+
+===== PAGE 9 =====
+yang  lebih  luas,  terutama  jika  dapat  diintegrasikan  dengan  sistem  resmi  pemerintah  dan  
+didukung
+ 
+oleh
+ 
+regulasi
+ 
+yang
+ 
+sesuai.
+ 
+Ke  depannya,  sistem  ini  masih  dapat  dikembangkan  lebih  lanjut,  baik  dari  sisi  peningkatan  
+akurasi
+ 
+AI,
+ 
+optimalisasi
+ 
+performa
+ 
+blockchain,
+ 
+maupun
+ 
+integrasi
+ 
+dengan
+ 
+teknologi
+ 
+lain
+ 
+seperti
+ 
+oracle
+ 
+untuk
+ 
+data
+ 
+eksternal.
+ 
+Dengan
+ 
+pengembangan
+ 
+yang
+ 
+berkelanjutan,
+ 
+diharapkan
+ 
+solusi
+ 
+ini
+ 
+dapat
+ 
+menjadi
+ 
+salah
+ 
+satu
+ 
+pendekatan
+ 
+efektif
+ 
+dalam
+ 
+mengurangi
+ 
+praktik
+ 
+mafia
+ 
+tanah
+ 
+dan
+ 
+meningkatkan
+ 
+integritas
+ 
+sistem
+ 
+pertanahan
+ 
+secara
+ 
+keseluruhan.
+ 
+ 
