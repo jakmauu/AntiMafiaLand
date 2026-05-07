@@ -23,14 +23,15 @@ const ADMIN_PRIVATE_KEY = process.env.ADMIN_PRIVATE_KEY ?? "";
 const JWT_SECRET = process.env.JWT_SECRET ?? "change_this_secret";
 const DATABASE_URL = process.env.DATABASE_URL ?? "";
 
-const artifactPath = path.resolve(
-  __dirname,
-  "../../artifacts/contracts/TerraChainSimple.sol/TerraChainSimple.json",
-);
+const artifactCandidates = [
+  path.resolve(__dirname, "../artifacts/contracts/TerraChainSimple.sol/TerraChainSimple.json"),
+  path.resolve(__dirname, "../../artifacts/contracts/TerraChainSimple.sol/TerraChainSimple.json"),
+];
+const artifactPath = artifactCandidates.find((candidate) => fs.existsSync(candidate));
 
-if (!fs.existsSync(artifactPath)) {
+if (!artifactPath) {
   throw new Error(
-    `Contract artifact not found at ${artifactPath}. Run 'npx.cmd hardhat compile' first.`,
+    `Contract artifact not found. Checked: ${artifactCandidates.join(", ")}`,
   );
 }
 
