@@ -16,14 +16,10 @@ RPC_URL=https://sepolia.infura.io/v3/YOUR_INFURA_KEY
 CONTRACT_ADDRESS=YOUR_SEPOLIA_CONTRACT_ADDRESS
 ADMIN_PRIVATE_KEY=YOUR_METAMASK_PRIVATE_KEY
 JWT_SECRET=replace_with_a_long_random_secret
-DB_PATH=/data/app.db
+DATABASE_URL=YOUR_POSTGRES_CONNECTION_STRING
 ```
 
-Attach a Railway Volume mounted at:
-
-```txt
-/data
-```
+Add a Railway Postgres database, then copy its `DATABASE_URL` into the backend service variables.
 
 Use these Railway commands/settings:
 

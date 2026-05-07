@@ -5,9 +5,9 @@ import { ethers } from "ethers";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import sqlite3 from "sqlite3";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import pg from "pg";
 
 dotenv.config();
 
@@ -21,7 +21,7 @@ const RPC_URL = process.env.RPC_URL ?? "http://127.0.0.1:8545";
 const CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS ?? "";
 const ADMIN_PRIVATE_KEY = process.env.ADMIN_PRIVATE_KEY ?? "";
 const JWT_SECRET = process.env.JWT_SECRET ?? "change_this_secret";
-const DB_PATH = process.env.DB_PATH ?? path.resolve(__dirname, "../data/app.db");
+const DATABASE_URL = process.env.DATABASE_URL ?? "";
 
 const artifactPath = path.resolve(
   __dirname,
@@ -50,45 +50,45 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const dbDir = path.dirname(DB_PATH);
-if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
-const db = new sqlite3.Database(DB_PATH);
+const { Pool } = pg;
+const pool = DATABASE_URL
+  ? new Pool({
+      connectionString: DATABASE_URL,
+      ssl: DATABASE_URL.includes("localhost")
+        ? false
+        : { rejectUnauthorized: false },
+    })
+  : null;
 
-function dbRun(sql, params = []) {
-  return new Promise((resolve, reject) => {
-    db.run(sql, params, function onRun(err) {
-      if (err) return reject(err);
-      resolve({ id: this.lastID, changes: this.changes });
-    });
-  });
+async function dbRun(sql, params = []) {
+  if (!pool) throw new Error("DATABASE_URL belum di-set.");
+  const result = await pool.query(sql, params);
+  return result;
 }
 
-function dbGet(sql, params = []) {
-  return new Promise((resolve, reject) => {
-    db.get(sql, params, (err, row) => {
-      if (err) return reject(err);
-      resolve(row ?? null);
-    });
-  });
+async function dbGet(sql, params = []) {
+  if (!pool) throw new Error("DATABASE_URL belum di-set.");
+  const result = await pool.query(sql, params);
+  return result.rows[0] ?? null;
 }
 
 async function initDb() {
   await dbRun(`
     CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id BIGSERIAL PRIMARY KEY,
       full_name TEXT NOT NULL,
       email TEXT NOT NULL UNIQUE,
       password_hash TEXT NOT NULL,
       role TEXT NOT NULL CHECK (role IN ('admin', 'user')),
-      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
 
-  const admin = await dbGet("SELECT id FROM users WHERE email = ?", ["admin@terrachain.local"]);
+  const admin = await dbGet("SELECT id FROM users WHERE email = $1", ["admin@terrachain.local"]);
   if (!admin) {
     const passwordHash = await bcrypt.hash("admin123", 10);
     await dbRun(
-      "INSERT INTO users (full_name, email, password_hash, role) VALUES (?, ?, ?, ?)",
+      "INSERT INTO users (full_name, email, password_hash, role) VALUES ($1, $2, $3, $4)",
       ["System Admin", "admin@terrachain.local", passwordHash, "admin"],
     );
   }
@@ -149,17 +149,17 @@ app.post("/auth/register", async (req, res) => {
 
     const normalizedEmail = String(email).trim().toLowerCase();
     const normalizedRole = role === "admin" ? "admin" : "user";
-    const exists = await dbGet("SELECT id FROM users WHERE email = ?", [normalizedEmail]);
+    const exists = await dbGet("SELECT id FROM users WHERE email = $1", [normalizedEmail]);
     if (exists) return res.status(409).json({ error: "Email sudah terdaftar." });
 
     const passwordHash = await bcrypt.hash(password, 10);
     const created = await dbRun(
-      "INSERT INTO users (full_name, email, password_hash, role) VALUES (?, ?, ?, ?)",
+      "INSERT INTO users (full_name, email, password_hash, role) VALUES ($1, $2, $3, $4) RETURNING id",
       [String(fullName).trim(), normalizedEmail, passwordHash, normalizedRole],
     );
 
-    const user = await dbGet("SELECT id, full_name, email, role, created_at FROM users WHERE id = ?", [
-      created.id,
+    const user = await dbGet("SELECT id, full_name, email, role, created_at FROM users WHERE id = $1", [
+      created.rows[0].id,
     ]);
 
     res.status(201).json({ ok: true, user });
@@ -176,7 +176,7 @@ app.post("/auth/login", async (req, res) => {
     }
 
     const normalizedEmail = String(email).trim().toLowerCase();
-    const user = await dbGet("SELECT * FROM users WHERE email = ?", [normalizedEmail]);
+    const user = await dbGet("SELECT * FROM users WHERE email = $1", [normalizedEmail]);
     if (!user) return res.status(401).json({ error: "Email atau password salah." });
 
     const ok = await bcrypt.compare(password, user.password_hash);
@@ -215,8 +215,8 @@ app.get("/health", async (_req, res) => {
     rpcUrl: RPC_URL,
     hasContractAddress: Boolean(CONTRACT_ADDRESS),
     hasAdminPrivateKey: Boolean(ADMIN_PRIVATE_KEY),
+    hasDatabaseUrl: Boolean(DATABASE_URL),
     latestBlock,
-    dbPath: DB_PATH,
   });
 });
 
