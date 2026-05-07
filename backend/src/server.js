@@ -55,9 +55,10 @@ const { Pool } = pg;
 const pool = DATABASE_URL
   ? new Pool({
       connectionString: DATABASE_URL,
-      ssl: DATABASE_URL.includes("localhost")
-        ? false
-        : { rejectUnauthorized: false },
+      ssl:
+        DATABASE_URL.includes("localhost") || DATABASE_URL.includes("127.0.0.1")
+          ? false
+          : { rejectUnauthorized: false },
     })
   : null;
 
