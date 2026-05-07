@@ -52,9 +52,28 @@ app.use(cors());
 app.use(express.json());
 
 const { Pool } = pg;
+
+function normalizeDatabaseUrl(databaseUrl) {
+  if (!databaseUrl) return "";
+
+  try {
+    const url = new URL(databaseUrl);
+    // Some hosted Postgres URLs include sslmode=require, which pg parses in a way
+    // that can override our rejectUnauthorized setting on Railway.
+    url.searchParams.delete("sslmode");
+    url.searchParams.delete("sslcert");
+    url.searchParams.delete("sslkey");
+    url.searchParams.delete("sslrootcert");
+    return url.toString();
+  } catch {
+    return databaseUrl;
+  }
+}
+
+const normalizedDatabaseUrl = normalizeDatabaseUrl(DATABASE_URL);
 const pool = DATABASE_URL
   ? new Pool({
-      connectionString: DATABASE_URL,
+      connectionString: normalizedDatabaseUrl,
       ssl:
         DATABASE_URL.includes("localhost") || DATABASE_URL.includes("127.0.0.1")
           ? false
