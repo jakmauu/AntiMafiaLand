@@ -2,21 +2,26 @@ import cors from "cors";
 import dotenv from "dotenv";
 import express from "express";
 import { ethers } from "ethers";
-import { PrismaClient } from "@prisma/client";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import sqlite3 from "sqlite3";
+import bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
+
+dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
 dotenv.config({ path: path.resolve(__dirname, "../.env"), override: true });
 
 const PORT = Number(process.env.PORT ?? 3001);
 const RPC_URL = process.env.RPC_URL ?? "http://127.0.0.1:8545";
 const CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS ?? "";
 const ADMIN_PRIVATE_KEY = process.env.ADMIN_PRIVATE_KEY ?? "";
-const DEFAULT_OWNER_PRIVATE_KEY = process.env.DEFAULT_OWNER_PRIVATE_KEY ?? "";
-const DATABASE_URL = process.env.DATABASE_URL ?? "";
+const JWT_SECRET = process.env.JWT_SECRET ?? "change_this_secret";
+const DB_PATH = process.env.DB_PATH ?? path.resolve(__dirname, "../data/app.db");
 
 const artifactPath = path.resolve(
   __dirname,
@@ -34,34 +39,75 @@ const abi = artifact.abi;
 
 const provider = new ethers.JsonRpcProvider(RPC_URL);
 const signer = ADMIN_PRIVATE_KEY ? new ethers.Wallet(ADMIN_PRIVATE_KEY, provider) : null;
-const prisma = new PrismaClient();
 
 const readContract =
   CONTRACT_ADDRESS && ethers.isAddress(CONTRACT_ADDRESS)
     ? new ethers.Contract(CONTRACT_ADDRESS, abi, provider)
     : null;
-
 const writeContract = signer && readContract ? readContract.connect(signer) : null;
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-const RISK_LEVEL = ["Low", "Medium", "High"];
-const TRANSFER_STATUS = ["None", "Pending", "Approved", "Frozen"];
+const dbDir = path.dirname(DB_PATH);
+if (!fs.existsSync(dbDir)) fs.mkdirSync(dbDir, { recursive: true });
+const db = new sqlite3.Database(DB_PATH);
+
+function dbRun(sql, params = []) {
+  return new Promise((resolve, reject) => {
+    db.run(sql, params, function onRun(err) {
+      if (err) return reject(err);
+      resolve({ id: this.lastID, changes: this.changes });
+    });
+  });
+}
+
+function dbGet(sql, params = []) {
+  return new Promise((resolve, reject) => {
+    db.get(sql, params, (err, row) => {
+      if (err) return reject(err);
+      resolve(row ?? null);
+    });
+  });
+}
+
+async function initDb() {
+  await dbRun(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      full_name TEXT NOT NULL,
+      email TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      role TEXT NOT NULL CHECK (role IN ('admin', 'user')),
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+
+  const admin = await dbGet("SELECT id FROM users WHERE email = ?", ["admin@terrachain.local"]);
+  if (!admin) {
+    const passwordHash = await bcrypt.hash("admin123", 10);
+    await dbRun(
+      "INSERT INTO users (full_name, email, password_hash, role) VALUES (?, ?, ?, ?)",
+      ["System Admin", "admin@terrachain.local", passwordHash, "admin"],
+    );
+  }
+}
+
+function signToken(user) {
+  return jwt.sign(
+    { sub: user.id, role: user.role, email: user.email, name: user.full_name },
+    JWT_SECRET,
+    { expiresIn: "12h" },
+  );
+}
 
 function toSafeJson(value) {
-  if (typeof value === "bigint") {
-    return value.toString();
-  }
-  if (Array.isArray(value)) {
-    return value.map(toSafeJson);
-  }
+  if (typeof value === "bigint") return value.toString();
+  if (Array.isArray(value)) return value.map(toSafeJson);
   if (value && typeof value === "object") {
     const out = {};
-    for (const [key, val] of Object.entries(value)) {
-      out[key] = toSafeJson(val);
-    }
+    for (const [k, v] of Object.entries(value)) out[k] = toSafeJson(v);
     return out;
   }
   return value;
@@ -69,70 +115,99 @@ function toSafeJson(value) {
 
 function ensureReadContract(res) {
   if (!readContract) {
-    res.status(500).json({
-      error:
-        "CONTRACT_ADDRESS belum di-set atau tidak valid. Isi .env backend dulu.",
-    });
+    res.status(500).json({ error: "CONTRACT_ADDRESS belum valid." });
     return false;
   }
   return true;
 }
 
 function ensureWriteContract(res) {
-  if (!readContract) {
-    res.status(500).json({ error: "CONTRACT_ADDRESS belum valid." });
-    return false;
-  }
-  if (!signer || !ADMIN_PRIVATE_KEY) {
-    res.status(500).json({ error: "ADMIN_PRIVATE_KEY belum di-set." });
-    return false;
-  }
-  if (!writeContract) {
-    res.status(500).json({ error: "Write contract tidak tersedia." });
+  if (!ensureReadContract(res)) return false;
+  if (!signer || !ADMIN_PRIVATE_KEY || !writeContract) {
+    res.status(500).json({ error: "ADMIN_PRIVATE_KEY belum valid." });
     return false;
   }
   return true;
 }
 
-function calculateRiskScore({
-  txFrequency = 0,
-  priceDeltaPct = 0,
-  walletRelationScore = 0,
-  flippingScore = 0,
-}) {
-  const clamp = (v) => Math.max(0, Math.min(100, Number(v)));
-  const freq = clamp(txFrequency);
-  const delta = clamp(priceDeltaPct);
-  const relation = clamp(walletRelationScore);
-  const flipping = clamp(flippingScore);
+const RISK_LEVEL = ["Low", "Medium", "High"];
+const TRANSFER_STATUS = ["None", "Pending", "Approved", "Frozen"];
 
-  const score = Math.round(
-    freq * 0.35 + delta * 0.25 + relation * 0.2 + flipping * 0.2,
-  );
-  const riskScore = Math.max(0, Math.min(100, score));
+app.get("/", (_req, res) => {
+  res.json({ ok: true, message: "TerraChain backend running" });
+});
 
-  const riskLevel = riskScore <= 30 ? "Low" : riskScore <= 70 ? "Medium" : "High";
-  const suggestedAction =
-    riskLevel === "Low" ? "Approved" : riskLevel === "Medium" ? "Pending" : "Frozen";
+app.post("/auth/register", async (req, res) => {
+  try {
+    const { fullName, email, password, role } = req.body ?? {};
+    if (!fullName || !email || !password) {
+      return res.status(400).json({ error: "fullName, email, password wajib diisi." });
+    }
+    if (password.length < 6) {
+      return res.status(400).json({ error: "Password minimal 6 karakter." });
+    }
 
-  return { riskScore, riskLevel, suggestedAction };
-}
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const normalizedRole = role === "admin" ? "admin" : "user";
+    const exists = await dbGet("SELECT id FROM users WHERE email = ?", [normalizedEmail]);
+    if (exists) return res.status(409).json({ error: "Email sudah terdaftar." });
+
+    const passwordHash = await bcrypt.hash(password, 10);
+    const created = await dbRun(
+      "INSERT INTO users (full_name, email, password_hash, role) VALUES (?, ?, ?, ?)",
+      [String(fullName).trim(), normalizedEmail, passwordHash, normalizedRole],
+    );
+
+    const user = await dbGet("SELECT id, full_name, email, role, created_at FROM users WHERE id = ?", [
+      created.id,
+    ]);
+
+    res.status(201).json({ ok: true, user });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/auth/login", async (req, res) => {
+  try {
+    const { email, password } = req.body ?? {};
+    if (!email || !password) {
+      return res.status(400).json({ error: "Email dan password wajib diisi." });
+    }
+
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const user = await dbGet("SELECT * FROM users WHERE email = ?", [normalizedEmail]);
+    if (!user) return res.status(401).json({ error: "Email atau password salah." });
+
+    const ok = await bcrypt.compare(password, user.password_hash);
+    if (!ok) return res.status(401).json({ error: "Email atau password salah." });
+
+    const token = signToken(user);
+    res.json({
+      ok: true,
+      token,
+      user: {
+        id: user.id,
+        fullName: user.full_name,
+        email: user.email,
+        role: user.role,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get("/config", (_req, res) => {
+  res.json({ contractAddress: CONTRACT_ADDRESS, hasContractAddress: Boolean(CONTRACT_ADDRESS) });
+});
 
 app.get("/health", async (_req, res) => {
   let latestBlock = null;
-  let database = { ok: false };
-
   try {
     latestBlock = await provider.getBlockNumber();
-  } catch (_err) {
+  } catch {
     latestBlock = null;
-  }
-
-  try {
-    await prisma.$queryRaw`SELECT 1`;
-    database = { ok: true };
-  } catch (err) {
-    database = { ok: false, error: err.message };
   }
 
   res.json({
@@ -140,26 +215,16 @@ app.get("/health", async (_req, res) => {
     rpcUrl: RPC_URL,
     hasContractAddress: Boolean(CONTRACT_ADDRESS),
     hasAdminPrivateKey: Boolean(ADMIN_PRIVATE_KEY),
-    hasDefaultOwnerPrivateKey: Boolean(DEFAULT_OWNER_PRIVATE_KEY),
-    hasDatabaseUrl: Boolean(DATABASE_URL),
     latestBlock,
-    database,
+    dbPath: DB_PATH,
   });
-});
-
-app.post("/risk/score", (req, res) => {
-  const result = calculateRiskScore(req.body ?? {});
-  res.json(result);
 });
 
 app.get("/lands/:landId", async (req, res) => {
   if (!ensureReadContract(res)) return;
   try {
-    const landId = BigInt(req.params.landId);
-    const land = await readContract.getLand(landId);
-    res.json({
-      land: toSafeJson(land),
-    });
+    const land = await readContract.getLand(BigInt(req.params.landId));
+    res.json({ land: toSafeJson(land) });
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
@@ -168,14 +233,13 @@ app.get("/lands/:landId", async (req, res) => {
 app.get("/transfers/:landId", async (req, res) => {
   if (!ensureReadContract(res)) return;
   try {
-    const landId = BigInt(req.params.landId);
-    const transfer = await readContract.getTransferRequest(landId);
-    const rawStatus = Number(transfer.status);
-    const rawRisk = Number(transfer.riskLevel);
+    const transfer = await readContract.getTransferRequest(BigInt(req.params.landId));
+    const status = Number(transfer.status);
+    const risk = Number(transfer.riskLevel);
     res.json({
       transfer: toSafeJson(transfer),
-      statusLabel: TRANSFER_STATUS[rawStatus] ?? "Unknown",
-      riskLabel: RISK_LEVEL[rawRisk] ?? "Unknown",
+      statusLabel: TRANSFER_STATUS[status] ?? "Unknown",
+      riskLabel: RISK_LEVEL[risk] ?? "Unknown",
     });
   } catch (error) {
     res.status(400).json({ error: error.message });
@@ -195,14 +259,9 @@ app.post("/admin/register-land", async (req, res) => {
 
     const tx = await writeContract.registerLand(owner, metadataURI, BigInt(price ?? 0));
     const receipt = await tx.wait();
-
-    return res.json({
-      ok: true,
-      txHash: receipt.hash,
-      blockNumber: receipt.blockNumber,
-    });
+    res.json({ ok: true, txHash: receipt.hash, blockNumber: receipt.blockNumber });
   } catch (error) {
-    return res.status(400).json({ error: error.message });
+    res.status(400).json({ error: error.message });
   }
 });
 
@@ -254,80 +313,7 @@ app.post("/admin/freeze-transfer", async (req, res) => {
   }
 });
 
-app.post("/workflow/auto-transfer", async (req, res) => {
-  if (!ensureWriteContract(res)) return;
-  if (!ensureReadContract(res)) return;
-
-  try {
-    const {
-      landId,
-      to,
-      ownerPrivateKey,
-      txFrequency = 0,
-      priceDeltaPct = 0,
-      walletRelationScore = 0,
-      flippingScore = 0,
-      autoExecuteLow = true,
-    } = req.body ?? {};
-
-    const ownerKey = ownerPrivateKey || DEFAULT_OWNER_PRIVATE_KEY;
-    if (!ownerKey) {
-      return res.status(400).json({
-        error:
-          "ownerPrivateKey wajib diisi (atau set DEFAULT_OWNER_PRIVATE_KEY di .env).",
-      });
-    }
-    if (!to || !ethers.isAddress(to)) {
-      return res.status(400).json({ error: "Recipient address tidak valid." });
-    }
-
-    const parsedLandId = BigInt(landId);
-    const ownerWallet = new ethers.Wallet(ownerKey, provider);
-    const ownerContract = readContract.connect(ownerWallet);
-
-    const requestTx = await ownerContract.requestTransfer(parsedLandId, to);
-    const requestReceipt = await requestTx.wait();
-
-    const ai = calculateRiskScore({
-      txFrequency,
-      priceDeltaPct,
-      walletRelationScore,
-      flippingScore,
-    });
-
-    const validateTx = await writeContract.validateRisk(parsedLandId, ai.riskScore);
-    const validateReceipt = await validateTx.wait();
-
-    const transferAfterValidation = await readContract.getTransferRequest(parsedLandId);
-    const statusAfterValidation = Number(transferAfterValidation.status);
-    const statusLabel = TRANSFER_STATUS[statusAfterValidation] ?? "Unknown";
-
-    let executeHash = null;
-    if (autoExecuteLow && statusLabel === "Approved") {
-      const executeTx = await writeContract.executeApprovedTransfer(parsedLandId);
-      const executeReceipt = await executeTx.wait();
-      executeHash = executeReceipt.hash;
-    }
-
-    const landAfterFlow = await readContract.getLand(parsedLandId);
-    const transferAfterFlow = await readContract.getTransferRequest(parsedLandId);
-
-    return res.json({
-      ok: true,
-      ai,
-      tx: {
-        requestTransfer: requestReceipt.hash,
-        validateRisk: validateReceipt.hash,
-        executeApprovedTransfer: executeHash,
-      },
-      statusAfterValidation: statusLabel,
-      landAfterFlow: toSafeJson(landAfterFlow),
-      transferAfterFlow: toSafeJson(transferAfterFlow),
-    });
-  } catch (error) {
-    return res.status(400).json({ error: error.message });
-  }
-});
+await initDb();
 
 app.listen(PORT, () => {
   console.log(`Backend listening on http://localhost:${PORT}`);

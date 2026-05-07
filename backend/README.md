@@ -1,49 +1,34 @@
 # TerraChain Backend
 
-## 1) Install
+## Setup
 
 ```bash
 npm install
 ```
 
-## 2) Configure env
+Copy `.env.example` to `.env`.
 
-Copy `.env.example` to `.env`, then fill:
-
-- `RPC_URL`: JSON-RPC endpoint (local hardhat node by default)
-- `CONTRACT_ADDRESS`: deployed `TerraChainSimple` contract address
-- `ADMIN_PRIVATE_KEY`: private key for account with admin/validator role
-- `DEFAULT_OWNER_PRIVATE_KEY` (optional): owner key untuk auto workflow demo
-- `DATABASE_URL`: Supabase Postgres URL (pooler, include `?sslmode=require`)
-- `DIRECT_URL`: direct URL for migrations (or pooler fallback)
-
-## 3) Run
+## Run
 
 ```bash
 npm run dev
 ```
 
-Backend starts at `http://localhost:3001`.
+## Auth
 
-## Database (Prisma)
+- `POST /auth/register`
+- `POST /auth/login`
 
-Run these commands from `backend/`:
+User data disimpan di SQLite (`DB_PATH`, default `backend/data/app.db`).
 
-```bash
-npm run db:generate
-npm run db:migrate -- --name init_core_schema
-```
+Default seed admin:
+- email: `admin@terrachain.local`
+- password: `admin123`
 
-For production deploy:
-
-```bash
-npm run db:deploy
-```
-
-## Available endpoints
+## Blockchain endpoints
 
 - `GET /health`
-- `POST /risk/score`
+- `GET /config`
 - `GET /lands/:landId`
 - `GET /transfers/:landId`
 - `POST /admin/register-land`
@@ -51,4 +36,3 @@ npm run db:deploy
 - `POST /admin/approve-transfer`
 - `POST /admin/execute-transfer`
 - `POST /admin/freeze-transfer`
-- `POST /workflow/auto-transfer`

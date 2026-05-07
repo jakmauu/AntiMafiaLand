@@ -1,532 +1,200 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { ethers } from "ethers";
 import "./App.css";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3001";
 
-const RISK_LEVEL_HELP = {
-  Low: "Transaksi relatif aman. Sistem bisa lanjut otomatis.",
-  Medium: "Perlu review tambahan dari admin/notaris.",
-  High: "Risiko tinggi. Transfer sebaiknya dibekukan sementara.",
-};
+const CONTRACT_ABI = ["function requestTransfer(uint256 _landId, address _to) public"];
 
-function LoginPanel({ onLogin }) {
-  const [displayName, setDisplayName] = useState("");
-  const [selectedRole, setSelectedRole] = useState("user");
+function AuthPage({ onAuth, statusMessage, setStatusMessage }) {
+  const [mode, setMode] = useState("login");
+  const [loginForm, setLoginForm] = useState({ email: "", password: "" });
+  const [registerForm, setRegisterForm] = useState({
+    fullName: "",
+    email: "",
+    password: "",
+    role: "user",
+  });
+  const [loading, setLoading] = useState(false);
 
-  function submitLogin(event) {
-    event.preventDefault();
-    onLogin({
-      name: displayName.trim() || (selectedRole === "admin" ? "Admin" : "Pengguna"),
-      role: selectedRole,
+  async function request(path, options = {}) {
+    const response = await fetch(`${API_BASE_URL}${path}`, {
+      headers: { "Content-Type": "application/json" },
+      ...options,
     });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error ?? `HTTP ${response.status}`);
+    return data;
+  }
+
+  async function submitLogin(e) {
+    e.preventDefault();
+    try {
+      setLoading(true);
+      const data = await request("/auth/login", {
+        method: "POST",
+        body: JSON.stringify(loginForm),
+      });
+      onAuth(data);
+      setStatusMessage(`Login berhasil sebagai ${data.user.role}.`);
+    } catch (err) {
+      setStatusMessage(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function submitRegister(e) {
+    e.preventDefault();
+    try {
+      setLoading(true);
+      await request("/auth/register", {
+        method: "POST",
+        body: JSON.stringify(registerForm),
+      });
+      setStatusMessage("Register berhasil. Silakan login.");
+      setMode("login");
+      setLoginForm({ email: registerForm.email, password: "" });
+    } catch (err) {
+      setStatusMessage(err.message);
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
     <section className="login-shell">
       <div className="login-card">
         <p className="eyebrow">TerraChain Access</p>
-        <h1>Anti-Mafia Land Dashboard</h1>
-        <p className="subtext">
-          Pilih mode login untuk menampilkan interface yang sesuai kebutuhan user atau admin.
-        </p>
+        <h1>Secure Land Registry</h1>
+        <p className="subtext">Masuk sebagai admin atau user. Data akun disimpan ke database proyek.</p>
 
-        <form className="login-form" onSubmit={submitLogin}>
-          <label>
-            Nama
-            <input
-              type="text"
-              placeholder="Contoh: Hilmy"
-              value={displayName}
-              onChange={(event) => setDisplayName(event.target.value)}
-            />
-          </label>
+        <div className="role-row">
+          <button className={`role-pill ${mode === "login" ? "active" : ""}`} onClick={() => setMode("login")} type="button">Login</button>
+          <button className={`role-pill ${mode === "register" ? "active" : ""}`} onClick={() => setMode("register")} type="button">Register</button>
+        </div>
 
-          <div className="role-row" role="radiogroup" aria-label="Pilih role">
-            <button
-              type="button"
-              className={`role-pill ${selectedRole === "user" ? "active" : ""}`}
-              onClick={() => setSelectedRole("user")}
-            >
-              Masuk sebagai User
-            </button>
-            <button
-              type="button"
-              className={`role-pill ${selectedRole === "admin" ? "active" : ""}`}
-              onClick={() => setSelectedRole("admin")}
-            >
-              Masuk sebagai Admin
-            </button>
-          </div>
+        {mode === "login" ? (
+          <form className="login-form" onSubmit={submitLogin}>
+            <label>Email<input type="email" value={loginForm.email} onChange={(e) => setLoginForm((p) => ({ ...p, email: e.target.value }))} required /></label>
+            <label>Password<input type="password" value={loginForm.password} onChange={(e) => setLoginForm((p) => ({ ...p, password: e.target.value }))} required /></label>
+            <button className="primary big-button" disabled={loading} type="submit">{loading ? "Loading..." : "Login"}</button>
+          </form>
+        ) : (
+          <form className="login-form" onSubmit={submitRegister}>
+            <label>Full Name<input type="text" value={registerForm.fullName} onChange={(e) => setRegisterForm((p) => ({ ...p, fullName: e.target.value }))} required /></label>
+            <label>Email<input type="email" value={registerForm.email} onChange={(e) => setRegisterForm((p) => ({ ...p, email: e.target.value }))} required /></label>
+            <label>Password<input type="password" minLength={6} value={registerForm.password} onChange={(e) => setRegisterForm((p) => ({ ...p, password: e.target.value }))} required /></label>
+            <label>Role
+              <select value={registerForm.role} onChange={(e) => setRegisterForm((p) => ({ ...p, role: e.target.value }))}>
+                <option value="user">User</option>
+                <option value="admin">Admin</option>
+              </select>
+            </label>
+            <button className="primary big-button" disabled={loading} type="submit">{loading ? "Loading..." : "Create Account"}</button>
+          </form>
+        )}
 
-          <button type="submit" className="primary big-button">
-            Login ke {selectedRole === "admin" ? "Admin Panel" : "User Portal"}
-          </button>
-        </form>
+        <p className="message">{statusMessage}</p>
       </div>
     </section>
   );
 }
 
-function SessionHeader({ session, loading, onHealthCheck, onLogout }) {
-  return (
-    <header className="hero">
-      <div>
-        <p className="eyebrow">{session.role === "admin" ? "Admin Console" : "User Portal"}</p>
-        <h1>{session.role === "admin" ? "Control and Validation" : "Transfer and Tracking"}</h1>
-        <p className="subtext">
-          Login sebagai <span className="inline-highlight">{session.name}</span>. Gunakan fitur sesuai
-          peran untuk menjaga alur transaksi tanah tetap aman dan transparan.
-        </p>
-      </div>
-      <div className="header-actions">
-        <button type="button" className="ghost" onClick={onHealthCheck} disabled={loading}>
-          {loading ? "Checking..." : "Check Backend"}
-        </button>
-        <button type="button" className="danger" onClick={onLogout}>
-          Logout
-        </button>
-      </div>
-    </header>
-  );
-}
-
-function UserDashboard({
-  isBusy,
-  loading,
-  riskInput,
-  setRiskInput,
-  riskResult,
-  onRiskScore,
-  landIdInput,
-  setLandIdInput,
-  landData,
-  onGetLand,
-  transferIdInput,
-  setTransferIdInput,
-  transferData,
-  onGetTransfer,
-  autoFlowInput,
-  setAutoFlowInput,
-  autoFlowResult,
-  onAutoWorkflow,
-}) {
-  return (
-    <main className="grid">
-      <article className="card card-wide">
-        <h2>Ajukan Transfer + AI Screening</h2>
-        <p className="subtext">
-          User mengajukan transfer, lalu sistem menjalankan risk scoring sesuai parameter perilaku.
-        </p>
-        <div className="form-grid">
-          <label>
-            Land ID
-            <input
-              type="number"
-              min="1"
-              value={autoFlowInput.landId}
-              onChange={(event) =>
-                setAutoFlowInput((prev) => ({ ...prev, landId: event.target.value }))
-              }
-            />
-          </label>
-          <label>
-            Recipient Address
-            <input
-              type="text"
-              value={autoFlowInput.to}
-              onChange={(event) =>
-                setAutoFlowInput((prev) => ({ ...prev, to: event.target.value }))
-              }
-            />
-          </label>
-          <label>
-            Owner Private Key (Demo)
-            <input
-              type="password"
-              placeholder="Wajib untuk simulasi owner signer"
-              value={autoFlowInput.ownerPrivateKey}
-              onChange={(event) =>
-                setAutoFlowInput((prev) => ({ ...prev, ownerPrivateKey: event.target.value }))
-              }
-            />
-          </label>
-          <label className="checkbox-row">
-            <input
-              type="checkbox"
-              checked={autoFlowInput.autoExecuteLow}
-              onChange={(event) =>
-                setAutoFlowInput((prev) => ({ ...prev, autoExecuteLow: event.target.checked }))
-              }
-            />
-            Auto execute saat low risk
-          </label>
-        </div>
-
-        <div className="form-grid risk-mini-grid">
-          <label>
-            Tx Frequency
-            <input
-              type="number"
-              value={riskInput.txFrequency}
-              onChange={(event) =>
-                setRiskInput((prev) => ({ ...prev, txFrequency: Number(event.target.value) }))
-              }
-            />
-          </label>
-          <label>
-            Price Delta %
-            <input
-              type="number"
-              value={riskInput.priceDeltaPct}
-              onChange={(event) =>
-                setRiskInput((prev) => ({ ...prev, priceDeltaPct: Number(event.target.value) }))
-              }
-            />
-          </label>
-          <label>
-            Wallet Relation
-            <input
-              type="number"
-              value={riskInput.walletRelationScore}
-              onChange={(event) =>
-                setRiskInput((prev) => ({
-                  ...prev,
-                  walletRelationScore: Number(event.target.value),
-                }))
-              }
-            />
-          </label>
-          <label>
-            Flipping Score
-            <input
-              type="number"
-              value={riskInput.flippingScore}
-              onChange={(event) =>
-                setRiskInput((prev) => ({ ...prev, flippingScore: Number(event.target.value) }))
-              }
-            />
-          </label>
-        </div>
-
-        <button type="button" className="primary" disabled={isBusy} onClick={onAutoWorkflow}>
-          {loading === "auto-workflow" ? "Running..." : "Run Transfer Workflow"}
-        </button>
-
-        {autoFlowResult ? <pre>{JSON.stringify(autoFlowResult, null, 2)}</pre> : null}
-      </article>
-
-      <article className="card">
-        <h2>Cek Data Tanah</h2>
-        <div className="inline-input">
-          <input
-            type="number"
-            min="1"
-            value={landIdInput}
-            onChange={(event) => setLandIdInput(event.target.value)}
-          />
-          <button type="button" className="ghost" onClick={onGetLand} disabled={isBusy}>
-            {loading === "land" ? "Loading..." : "Get Land"}
-          </button>
-        </div>
-        {landData ? <pre>{JSON.stringify(landData, null, 2)}</pre> : null}
-      </article>
-
-      <article className="card">
-        <h2>Status Transfer</h2>
-        <div className="inline-input">
-          <input
-            type="number"
-            min="1"
-            value={transferIdInput}
-            onChange={(event) => setTransferIdInput(event.target.value)}
-          />
-          <button type="button" className="ghost" onClick={onGetTransfer} disabled={isBusy}>
-            {loading === "transfer" ? "Loading..." : "Get Transfer"}
-          </button>
-        </div>
-        {transferData ? <pre>{JSON.stringify(transferData, null, 2)}</pre> : null}
-      </article>
-
-      <article className="card card-wide">
-        <h2>Risk Scoring Preview</h2>
-        <p className="subtext">Simulasi cepat untuk memahami posisi risiko sebelum transaksi.</p>
-        <button type="button" className="primary" onClick={onRiskScore} disabled={isBusy}>
-          {loading === "risk" ? "Calculating..." : "Calculate Risk"}
-        </button>
-        {riskResult ? (
-          <div>
-            <pre>{JSON.stringify(riskResult, null, 2)}</pre>
-            <p className="message">
-              {RISK_LEVEL_HELP[riskResult.riskLevel] ?? "Belum ada interpretasi risiko."}
-            </p>
-          </div>
-        ) : null}
-      </article>
-    </main>
-  );
-}
-
-function AdminDashboard({
-  isBusy,
-  loading,
-  registerInput,
-  setRegisterInput,
-  onRegisterLand,
-  adminLandId,
-  setAdminLandId,
-  runAdminAction,
-  landIdInput,
-  setLandIdInput,
-  landData,
-  onGetLand,
-  transferIdInput,
-  setTransferIdInput,
-  transferData,
-  onGetTransfer,
-  riskInput,
-  setRiskInput,
-  riskResult,
-  onRiskScore,
-}) {
-  return (
-    <main className="grid">
-      <article className="card">
-        <h2>Register Land</h2>
-        <div className="form-grid">
-          <label>
-            Owner Address
-            <input
-              type="text"
-              value={registerInput.owner}
-              onChange={(event) =>
-                setRegisterInput((prev) => ({ ...prev, owner: event.target.value }))
-              }
-            />
-          </label>
-          <label>
-            Metadata URI
-            <input
-              type="text"
-              value={registerInput.metadataURI}
-              onChange={(event) =>
-                setRegisterInput((prev) => ({ ...prev, metadataURI: event.target.value }))
-              }
-            />
-          </label>
-          <label>
-            Price
-            <input
-              type="text"
-              value={registerInput.price}
-              onChange={(event) =>
-                setRegisterInput((prev) => ({ ...prev, price: event.target.value }))
-              }
-            />
-          </label>
-        </div>
-        <button type="button" className="primary" onClick={onRegisterLand} disabled={isBusy}>
-          {loading === "register" ? "Submitting..." : "Register Land"}
-        </button>
-      </article>
-
-      <article className="card card-wide">
-        <h2>Admin Actions</h2>
-        <label>
-          Land ID
-          <input
-            type="number"
-            min="1"
-            value={adminLandId}
-            onChange={(event) => setAdminLandId(event.target.value)}
-          />
-        </label>
-        <div className="button-row">
-          <button
-            type="button"
-            className="ghost"
-            disabled={isBusy}
-            onClick={() => runAdminAction("/admin/approve-transfer", "Pending transfer disetujui")}
-          >
-            Approve Pending
-          </button>
-          <button
-            type="button"
-            className="ghost"
-            disabled={isBusy}
-            onClick={() => runAdminAction("/admin/execute-transfer", "Approved transfer dieksekusi")}
-          >
-            Execute Approved
-          </button>
-          <button
-            type="button"
-            className="ghost danger"
-            disabled={isBusy}
-            onClick={() => runAdminAction("/admin/freeze-transfer", "Transfer dibekukan")}
-          >
-            Freeze Transfer
-          </button>
-        </div>
-      </article>
-
-      <article className="card">
-        <h2>Land Lookup</h2>
-        <div className="inline-input">
-          <input
-            type="number"
-            min="1"
-            value={landIdInput}
-            onChange={(event) => setLandIdInput(event.target.value)}
-          />
-          <button type="button" className="ghost" onClick={onGetLand} disabled={isBusy}>
-            {loading === "land" ? "Loading..." : "Get Land"}
-          </button>
-        </div>
-        {landData ? <pre>{JSON.stringify(landData, null, 2)}</pre> : null}
-      </article>
-
-      <article className="card">
-        <h2>Transfer Lookup</h2>
-        <div className="inline-input">
-          <input
-            type="number"
-            min="1"
-            value={transferIdInput}
-            onChange={(event) => setTransferIdInput(event.target.value)}
-          />
-          <button type="button" className="ghost" onClick={onGetTransfer} disabled={isBusy}>
-            {loading === "transfer" ? "Loading..." : "Get Transfer"}
-          </button>
-        </div>
-        {transferData ? <pre>{JSON.stringify(transferData, null, 2)}</pre> : null}
-      </article>
-
-      <article className="card card-wide">
-        <h2>Risk Scoring Console</h2>
-        <div className="form-grid">
-          <label>
-            Tx Frequency
-            <input
-              type="number"
-              value={riskInput.txFrequency}
-              onChange={(event) =>
-                setRiskInput((prev) => ({ ...prev, txFrequency: Number(event.target.value) }))
-              }
-            />
-          </label>
-          <label>
-            Price Delta %
-            <input
-              type="number"
-              value={riskInput.priceDeltaPct}
-              onChange={(event) =>
-                setRiskInput((prev) => ({ ...prev, priceDeltaPct: Number(event.target.value) }))
-              }
-            />
-          </label>
-          <label>
-            Wallet Relation
-            <input
-              type="number"
-              value={riskInput.walletRelationScore}
-              onChange={(event) =>
-                setRiskInput((prev) => ({
-                  ...prev,
-                  walletRelationScore: Number(event.target.value),
-                }))
-              }
-            />
-          </label>
-          <label>
-            Flipping Score
-            <input
-              type="number"
-              value={riskInput.flippingScore}
-              onChange={(event) =>
-                setRiskInput((prev) => ({ ...prev, flippingScore: Number(event.target.value) }))
-              }
-            />
-          </label>
-        </div>
-        <button type="button" className="primary" onClick={onRiskScore} disabled={isBusy}>
-          {loading === "risk" ? "Calculating..." : "Calculate Risk"}
-        </button>
-        {riskResult ? <pre>{JSON.stringify(riskResult, null, 2)}</pre> : null}
-      </article>
-    </main>
-  );
-}
-
 function App() {
-  const [session, setSession] = useState(null);
+  const [auth, setAuth] = useState(null);
   const [health, setHealth] = useState(null);
-  const [riskInput, setRiskInput] = useState({
-    txFrequency: 55,
-    priceDeltaPct: 40,
-    walletRelationScore: 35,
-    flippingScore: 25,
-  });
-  const [riskResult, setRiskResult] = useState(null);
-  const [registerInput, setRegisterInput] = useState({
-    owner: "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
-    metadataURI: "ipfs://tanah-1",
-    price: "1000",
-  });
-  const [landIdInput, setLandIdInput] = useState("1");
-  const [transferIdInput, setTransferIdInput] = useState("1");
+  const [statusMessage, setStatusMessage] = useState("Silakan login terlebih dulu.");
+  const [loading, setLoading] = useState("");
+  const [contractAddress, setContractAddress] = useState("");
+  const [walletAddress, setWalletAddress] = useState("");
+
+  const [registerInput, setRegisterInput] = useState({ owner: "", metadataURI: "", price: "1000" });
+  const [requestInput, setRequestInput] = useState({ landId: "1", to: "" });
+  const [validateInput, setValidateInput] = useState({ landId: "1", riskScore: "25" });
+  const [adminLandId, setAdminLandId] = useState("1");
+  const [landLookupId, setLandLookupId] = useState("1");
+  const [transferLookupId, setTransferLookupId] = useState("1");
   const [landData, setLandData] = useState(null);
   const [transferData, setTransferData] = useState(null);
-  const [adminLandId, setAdminLandId] = useState("1");
-  const [autoFlowInput, setAutoFlowInput] = useState({
-    landId: "1",
-    to: "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
-    ownerPrivateKey: "",
-    autoExecuteLow: true,
-  });
-  const [autoFlowResult, setAutoFlowResult] = useState(null);
-  const [statusMessage, setStatusMessage] = useState("");
-  const [loading, setLoading] = useState("");
 
   const isBusy = useMemo(() => loading.length > 0, [loading]);
+  const isAdmin = auth?.user?.role === "admin";
+
+  useEffect(() => {
+    const raw = localStorage.getItem("terra_auth");
+    if (raw) {
+      try {
+        setAuth(JSON.parse(raw));
+      } catch {
+        localStorage.removeItem("terra_auth");
+      }
+    }
+  }, []);
 
   async function request(path, options = {}) {
     const response = await fetch(`${API_BASE_URL}${path}`, {
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       ...options,
     });
-
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      throw new Error(data.error ?? `HTTP ${response.status}`);
-    }
+    if (!response.ok) throw new Error(data.error ?? `HTTP ${response.status}`);
     return data;
   }
 
-  async function handleHealthCheck() {
+  function handleAuth(data) {
+    setAuth(data);
+    localStorage.setItem("terra_auth", JSON.stringify(data));
+  }
+
+  function logout() {
+    setAuth(null);
+    localStorage.removeItem("terra_auth");
+    setStatusMessage("Logout berhasil.");
+  }
+
+  async function checkHealth() {
     try {
       setLoading("health");
-      const data = await request("/health");
-      setHealth(data);
-      setStatusMessage("Backend aktif dan terkoneksi.");
-    } catch (error) {
-      setStatusMessage(error.message);
+      const [h, cfg] = await Promise.all([request("/health"), request("/config")]);
+      setHealth(h);
+      setContractAddress(cfg.contractAddress || "");
+      setStatusMessage("Backend dan kontrak siap.");
+    } catch (e) {
+      setStatusMessage(e.message);
     } finally {
       setLoading("");
     }
   }
 
-  async function handleRiskScore() {
+  async function connectWallet() {
     try {
-      setLoading("risk");
-      const data = await request("/risk/score", {
-        method: "POST",
-        body: JSON.stringify(riskInput),
-      });
-      setRiskResult(data);
-      setStatusMessage("Risk scoring berhasil dihitung.");
-    } catch (error) {
-      setStatusMessage(error.message);
+      if (!window.ethereum) throw new Error("MetaMask tidak terdeteksi.");
+      setLoading("wallet");
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const accounts = await provider.send("eth_requestAccounts", []);
+      setWalletAddress(accounts[0] || "");
+      setStatusMessage("Wallet terhubung.");
+    } catch (e) {
+      setStatusMessage(e.message);
+    } finally {
+      setLoading("");
+    }
+  }
+
+  async function handleRequestTransfer() {
+    try {
+      if (!window.ethereum) throw new Error("MetaMask tidak terdeteksi.");
+      if (!contractAddress) throw new Error("Contract address belum dimuat.");
+      setLoading("request");
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const contract = new ethers.Contract(contractAddress, CONTRACT_ABI, signer);
+      const tx = await contract.requestTransfer(BigInt(requestInput.landId), requestInput.to);
+      await tx.wait();
+      setStatusMessage(`requestTransfer sukses. Tx: ${tx.hash}`);
+    } catch (e) {
+      setStatusMessage(e.message);
     } finally {
       setLoading("");
     }
@@ -534,147 +202,150 @@ function App() {
 
   async function handleRegisterLand() {
     try {
-      setLoading("register");
-      const data = await request("/admin/register-land", {
-        method: "POST",
-        body: JSON.stringify(registerInput),
-      });
-      setStatusMessage(`Register land berhasil. Tx: ${data.txHash}`);
-    } catch (error) {
-      setStatusMessage(error.message);
+      setLoading("register-land");
+      const data = await request("/admin/register-land", { method: "POST", body: JSON.stringify(registerInput) });
+      setStatusMessage(`Register land sukses. Tx: ${data.txHash}`);
+    } catch (e) {
+      setStatusMessage(e.message);
     } finally {
       setLoading("");
     }
   }
 
-  async function handleGetLand() {
+  async function handleValidateRisk() {
     try {
-      setLoading("land");
-      const data = await request(`/lands/${landIdInput}`);
-      setLandData(data);
-      setStatusMessage(`Data land #${landIdInput} berhasil diambil.`);
-    } catch (error) {
-      setStatusMessage(error.message);
+      setLoading("validate");
+      const data = await request("/admin/validate-risk", { method: "POST", body: JSON.stringify(validateInput) });
+      setStatusMessage(`Validate risk sukses. Tx: ${data.txHash}`);
+    } catch (e) {
+      setStatusMessage(e.message);
     } finally {
       setLoading("");
     }
   }
 
-  async function handleGetTransfer() {
-    try {
-      setLoading("transfer");
-      const data = await request(`/transfers/${transferIdInput}`);
-      setTransferData(data);
-      setStatusMessage(`Data transfer #${transferIdInput} berhasil diambil.`);
-    } catch (error) {
-      setStatusMessage(error.message);
-    } finally {
-      setLoading("");
-    }
-  }
-
-  async function runAdminAction(path, successText) {
+  async function runAdminAction(path, label) {
     try {
       setLoading(path);
-      const data = await request(path, {
-        method: "POST",
-        body: JSON.stringify({ landId: adminLandId }),
-      });
-      setStatusMessage(`${successText}. Tx: ${data.txHash}`);
-    } catch (error) {
-      setStatusMessage(error.message);
+      const data = await request(path, { method: "POST", body: JSON.stringify({ landId: adminLandId }) });
+      setStatusMessage(`${label} sukses. Tx: ${data.txHash}`);
+    } catch (e) {
+      setStatusMessage(e.message);
     } finally {
       setLoading("");
     }
   }
 
-  async function handleAutoWorkflow() {
+  async function getLand() {
     try {
-      setLoading("auto-workflow");
-      const data = await request("/workflow/auto-transfer", {
-        method: "POST",
-        body: JSON.stringify({
-          landId: autoFlowInput.landId,
-          to: autoFlowInput.to,
-          ownerPrivateKey: autoFlowInput.ownerPrivateKey,
-          autoExecuteLow: autoFlowInput.autoExecuteLow,
-          ...riskInput,
-        }),
-      });
-      setAutoFlowResult(data);
-      setStatusMessage("Auto workflow berhasil: request transfer dan validasi risk selesai.");
-    } catch (error) {
-      setStatusMessage(error.message);
+      setLoading("land");
+      const data = await request(`/lands/${landLookupId}`);
+      setLandData(data);
+    } catch (e) {
+      setStatusMessage(e.message);
     } finally {
       setLoading("");
     }
   }
 
-  if (!session) {
-    return <LoginPanel onLogin={setSession} />;
+  async function getTransfer() {
+    try {
+      setLoading("transfer");
+      const data = await request(`/transfers/${transferLookupId}`);
+      setTransferData(data);
+    } catch (e) {
+      setStatusMessage(e.message);
+    } finally {
+      setLoading("");
+    }
+  }
+
+  if (!auth) {
+    return <AuthPage onAuth={handleAuth} statusMessage={statusMessage} setStatusMessage={setStatusMessage} />;
   }
 
   return (
     <div className="page">
-      <SessionHeader
-        session={session}
-        loading={isBusy}
-        onHealthCheck={handleHealthCheck}
-        onLogout={() => setSession(null)}
-      />
+      <header className="hero">
+        <div>
+          <p className="eyebrow">TerraChain Dashboard</p>
+          <h1>Welcome, {auth.user.fullName}</h1>
+          <p className="subtext">Role: <b>{auth.user.role}</b> | Wallet: <code>{walletAddress || "not connected"}</code></p>
+        </div>
+        <div className="button-row">
+          <button className="ghost" onClick={checkHealth} disabled={isBusy}>{loading === "health" ? "Checking..." : "Check Backend"}</button>
+          <button className="ghost" onClick={connectWallet} disabled={isBusy}>{loading === "wallet" ? "Connecting..." : "Connect Wallet"}</button>
+          <button className="danger" onClick={logout}>Logout</button>
+        </div>
+      </header>
 
       <section className="status-card">
-        <p className="label">API Base URL</p>
-        <code>{API_BASE_URL}</code>
-        <p className="message">{statusMessage || "Siap menjalankan operasi."}</p>
+        <p className="message">{statusMessage}</p>
+        <p className="message">Contract: <code>{contractAddress || "(click Check Backend)"}</code></p>
         {health ? <pre>{JSON.stringify(health, null, 2)}</pre> : null}
       </section>
 
-      {session.role === "admin" ? (
-        <AdminDashboard
-          isBusy={isBusy}
-          loading={loading}
-          registerInput={registerInput}
-          setRegisterInput={setRegisterInput}
-          onRegisterLand={handleRegisterLand}
-          adminLandId={adminLandId}
-          setAdminLandId={setAdminLandId}
-          runAdminAction={runAdminAction}
-          landIdInput={landIdInput}
-          setLandIdInput={setLandIdInput}
-          landData={landData}
-          onGetLand={handleGetLand}
-          transferIdInput={transferIdInput}
-          setTransferIdInput={setTransferIdInput}
-          transferData={transferData}
-          onGetTransfer={handleGetTransfer}
-          riskInput={riskInput}
-          setRiskInput={setRiskInput}
-          riskResult={riskResult}
-          onRiskScore={handleRiskScore}
-        />
-      ) : (
-        <UserDashboard
-          isBusy={isBusy}
-          loading={loading}
-          riskInput={riskInput}
-          setRiskInput={setRiskInput}
-          riskResult={riskResult}
-          onRiskScore={handleRiskScore}
-          landIdInput={landIdInput}
-          setLandIdInput={setLandIdInput}
-          landData={landData}
-          onGetLand={handleGetLand}
-          transferIdInput={transferIdInput}
-          setTransferIdInput={setTransferIdInput}
-          transferData={transferData}
-          onGetTransfer={handleGetTransfer}
-          autoFlowInput={autoFlowInput}
-          setAutoFlowInput={setAutoFlowInput}
-          autoFlowResult={autoFlowResult}
-          onAutoWorkflow={handleAutoWorkflow}
-        />
-      )}
+      <main className="grid">
+        <article className="card">
+          <h2>User: Request Transfer</h2>
+          <div className="form-grid">
+            <label>Land ID<input type="number" value={requestInput.landId} onChange={(e)=>setRequestInput((p)=>({...p, landId:e.target.value}))}/></label>
+            <label>Recipient<input type="text" value={requestInput.to} onChange={(e)=>setRequestInput((p)=>({...p, to:e.target.value}))}/></label>
+          </div>
+          <button className="primary" onClick={handleRequestTransfer} disabled={isBusy}>Request Transfer</button>
+        </article>
+
+        {isAdmin ? (
+          <>
+            <article className="card">
+              <h2>Admin: Register Land</h2>
+              <div className="form-grid">
+                <label>Owner<input type="text" value={registerInput.owner} onChange={(e)=>setRegisterInput((p)=>({...p, owner:e.target.value}))}/></label>
+                <label>Metadata URI<input type="text" value={registerInput.metadataURI} onChange={(e)=>setRegisterInput((p)=>({...p, metadataURI:e.target.value}))}/></label>
+                <label>Price<input type="text" value={registerInput.price} onChange={(e)=>setRegisterInput((p)=>({...p, price:e.target.value}))}/></label>
+              </div>
+              <button className="primary" onClick={handleRegisterLand} disabled={isBusy}>Register Land</button>
+            </article>
+
+            <article className="card">
+              <h2>Admin: Validate Risk</h2>
+              <div className="form-grid">
+                <label>Land ID<input type="number" value={validateInput.landId} onChange={(e)=>setValidateInput((p)=>({...p, landId:e.target.value}))}/></label>
+                <label>Risk Score<input type="number" min="0" max="100" value={validateInput.riskScore} onChange={(e)=>setValidateInput((p)=>({...p, riskScore:e.target.value}))}/></label>
+              </div>
+              <button className="primary" onClick={handleValidateRisk} disabled={isBusy}>Validate Risk</button>
+            </article>
+
+            <article className="card card-wide">
+              <h2>Admin Actions</h2>
+              <label>Land ID<input type="number" value={adminLandId} onChange={(e)=>setAdminLandId(e.target.value)} /></label>
+              <div className="button-row">
+                <button className="ghost" onClick={()=>runAdminAction("/admin/approve-transfer","Approve Pending")} disabled={isBusy}>Approve Pending</button>
+                <button className="ghost" onClick={()=>runAdminAction("/admin/execute-transfer","Execute Approved")} disabled={isBusy}>Execute Approved</button>
+                <button className="danger" onClick={()=>runAdminAction("/admin/freeze-transfer","Freeze Transfer")} disabled={isBusy}>Freeze Transfer</button>
+              </div>
+            </article>
+          </>
+        ) : null}
+
+        <article className="card">
+          <h2>Land Lookup</h2>
+          <div className="inline-input">
+            <input type="number" value={landLookupId} onChange={(e)=>setLandLookupId(e.target.value)} />
+            <button className="ghost" onClick={getLand} disabled={isBusy}>Get Land</button>
+          </div>
+          {landData ? <pre>{JSON.stringify(landData, null, 2)}</pre> : null}
+        </article>
+
+        <article className="card">
+          <h2>Transfer Lookup</h2>
+          <div className="inline-input">
+            <input type="number" value={transferLookupId} onChange={(e)=>setTransferLookupId(e.target.value)} />
+            <button className="ghost" onClick={getTransfer} disabled={isBusy}>Get Transfer</button>
+          </div>
+          {transferData ? <pre>{JSON.stringify(transferData, null, 2)}</pre> : null}
+        </article>
+      </main>
     </div>
   );
 }

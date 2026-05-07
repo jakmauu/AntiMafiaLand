@@ -20,6 +20,11 @@
 .env
 .env.*
 !.env.example
+backend/data/
+*.db
+*.sqlite
+*.sqlite3
+upload_ready/
 
 # Hardhat coverage reports
 /coverage
