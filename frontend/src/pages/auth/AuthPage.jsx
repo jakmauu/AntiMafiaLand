@@ -1,4 +1,5 @@
 import { useState } from "react";
+import logo from "../../assets/logo.png";
 import { login, register } from "../../services/authApi";
 
 export default function AuthPage({ onAuth, statusMessage, setStatusMessage }) {
@@ -39,12 +40,20 @@ export default function AuthPage({ onAuth, statusMessage, setStatusMessage }) {
   return (
     <section className="login-shell">
       <div className="login-visual">
+        <img className="login-hero-logo" src={logo} alt="Anti Mafia Land System logo" />
         <p className="eyebrow">Anti Mafia Land System</p>
         <h1>Secure land registry powered by blockchain.</h1>
         <p>Portal registrasi tanah, validasi risiko, dan transfer kepemilikan dengan smart contract Sepolia.</p>
         <div className="login-metrics"><span>Sepolia</span><span>MetaMask</span><span>Smart Contract</span></div>
       </div>
       <div className="login-card">
+        <div className="login-card-brand">
+          <img src={logo} alt="Anti Mafia Land System logo" />
+          <div>
+            <strong>Anti Mafia Land</strong>
+            <span>Blockchain Registry</span>
+          </div>
+        </div>
         <p className="eyebrow">TerraChain Access</p>
         <h2>{mode === "login" ? "Welcome Back" : "Create Account"}</h2>
         <p className="subtext">Masuk sebagai admin atau user. Data akun disimpan ke database proyek.</p>

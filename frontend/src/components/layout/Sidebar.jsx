@@ -1,4 +1,5 @@
 import { NavLink } from "react-router-dom";
+import logo from "../../assets/logo.png";
 
 const adminMenus = [
   ["Dashboard", "/admin/dashboard"],
@@ -24,7 +25,7 @@ export default function Sidebar({ role, onLogout }) {
   return (
     <aside className="sidebar">
       <div className="brand-block">
-        <div className="brand-mark">AM</div>
+        <img className="brand-logo" src={logo} alt="Anti Mafia Land System logo" />
         <div><strong>ANTI MAFIA</strong><span>LAND SYSTEM</span></div>
       </div>
       <nav className="side-nav">
