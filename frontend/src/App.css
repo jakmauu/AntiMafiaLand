@@ -1184,6 +1184,7 @@ td {
   .sidebar {
     position: relative;
     height: auto;
+    padding: 0.9rem;
   }
 
   .side-nav {
@@ -1207,10 +1208,256 @@ td {
 }
 
 @media (max-width: 720px) {
+  body {
+    background: #f4f8fd;
+  }
+
+  .login-shell {
+    min-height: 100svh;
+    padding: 1rem;
+    gap: 1rem;
+  }
+
+  .login-visual {
+    display: none;
+  }
+
+  .login-card {
+    width: 100%;
+    padding: 1.1rem;
+    border-radius: 1.1rem;
+  }
+
+  .login-card h2 {
+    font-size: 1.65rem;
+  }
+
+  .dashboard-shell {
+    display: block;
+    min-height: 100svh;
+  }
+
+  .sidebar {
+    position: static;
+    display: block;
+    height: auto;
+    padding: 0.8rem;
+    border-radius: 0 0 1.25rem 1.25rem;
+    box-shadow: 0 12px 28px rgba(3, 12, 27, 0.16);
+  }
+
+  .brand-block {
+    padding: 0.15rem 0.2rem 0.75rem;
+  }
+
+  .brand-logo {
+    width: 42px;
+    height: 42px;
+    border-radius: 0.85rem;
+  }
+
+  .brand-block strong {
+    font-size: 0.92rem;
+  }
+
+  .brand-block span {
+    font-size: 0.72rem;
+  }
+
+  .side-nav {
+    display: flex;
+    gap: 0.45rem;
+    overflow-x: auto;
+    padding-bottom: 0.25rem;
+    scrollbar-width: none;
+  }
+
+  .side-nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .side-nav a {
+    min-height: 40px;
+    flex: 0 0 auto;
+    padding: 0 0.75rem;
+    border-radius: 999px;
+    font-size: 0.82rem;
+    white-space: nowrap;
+    background: rgba(255, 255, 255, 0.07);
+  }
+
+  .side-nav a.active {
+    box-shadow: none;
+  }
+
+  .nav-dot {
+    width: 7px;
+    height: 7px;
+  }
+
+  .sidebar-status {
+    display: none;
+  }
+
+  .sidebar-logout {
+    width: 100%;
+    min-height: 42px;
+    margin-top: 0.6rem;
+    border-radius: 0.9rem;
+  }
+
+  .topbar {
+    position: static;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: start;
+    gap: 0.75rem;
+    min-height: auto;
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+    background: rgba(255, 255, 255, 0.96);
+  }
+
   .dashboard-content,
   .topbar {
     padding-left: 1rem;
     padding-right: 1rem;
+  }
+
+  .topbar-title {
+    min-width: 0;
+    gap: 0.65rem;
+  }
+
+  .topbar-title h1 {
+    font-size: 1.05rem;
+    line-height: 1.2;
+  }
+
+  .top-kicker {
+    font-size: 0.64rem;
+    letter-spacing: 0.1em;
+    max-width: 190px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .menu-button,
+  .icon-button {
+    width: 40px;
+    height: 40px;
+    border-radius: 0.8rem;
+  }
+
+  .topbar-actions {
+    display: contents;
+  }
+
+  .icon-button {
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: end;
+  }
+
+  .network-pill,
+  .wallet-pill {
+    min-height: 40px;
+    padding: 0.55rem 0.7rem;
+    font-size: 0.82rem;
+  }
+
+  .network-pill {
+    grid-column: 1;
+    grid-row: 2;
+    justify-self: start;
+  }
+
+  .wallet-pill {
+    grid-column: 2;
+    grid-row: 2;
+    justify-self: end;
+    max-width: 150px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .avatar-block {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    justify-content: flex-start;
+    padding: 0.7rem;
+    border: 1px solid var(--slate-200);
+    border-radius: 1rem;
+    background: #fff;
+  }
+
+  .avatar {
+    width: 38px;
+    height: 38px;
+  }
+
+  .avatar-block strong {
+    font-size: 0.95rem;
+  }
+
+  .search-box {
+    grid-column: 1 / -1;
+    grid-row: 4;
+    width: 100%;
+    order: initial;
+  }
+
+  .dashboard-content {
+    padding-top: 0.8rem;
+    padding-bottom: 1.25rem;
+  }
+
+  .status-console {
+    grid-template-columns: 1fr;
+    gap: 0.7rem;
+    padding: 0.85rem;
+    border-radius: 0.95rem;
+  }
+
+  .status-console pre {
+    max-height: 170px;
+    font-size: 0.72rem;
+  }
+
+  .profile-panel {
+    display: block;
+    min-height: auto;
+    padding: 1rem;
+    border-radius: 1rem;
+  }
+
+  .profile-main {
+    align-items: flex-start;
+    gap: 0.8rem;
+  }
+
+  .profile-photo {
+    width: 64px;
+    height: 64px;
+    border-radius: 1rem;
+    font-size: 1.5rem;
+  }
+
+  .profile-title-row {
+    display: block;
+  }
+
+  .profile-title-row h2 {
+    font-size: 1.25rem;
+  }
+
+  .role-badge {
+    margin-top: 0.45rem;
+  }
+
+  .profile-main p {
+    font-size: 0.9rem;
   }
 
   .stats-grid,
@@ -1222,6 +1469,93 @@ td {
     grid-template-columns: 1fr;
   }
 
+  .profile-details {
+    gap: 0.65rem;
+    margin-top: 1rem;
+  }
+
+  .profile-details > div {
+    min-height: auto;
+    padding: 0.75rem 0.85rem;
+    border-left: 0;
+    border-radius: 0.85rem;
+    background: rgba(255, 255, 255, 0.72);
+    border: 1px solid #d9e7f7;
+  }
+
+  .contract-crest {
+    width: 100%;
+    min-height: 84px;
+    margin-top: 0.75rem;
+  }
+
+  .stats-grid {
+    gap: 0.7rem;
+    margin-top: 0.8rem;
+  }
+
+  .stat-card {
+    min-height: 92px;
+    padding: 0.85rem;
+    border-radius: 0.9rem;
+  }
+
+  .stat-icon {
+    width: 44px;
+    height: 44px;
+  }
+
+  .stat-card strong {
+    font-size: 1.25rem;
+  }
+
+  .chart-grid,
+  .compact-charts,
+  .operations-grid,
+  .bottom-grid,
+  .full-bottom {
+    grid-template-columns: 1fr;
+    gap: 0.8rem;
+    margin-top: 0.8rem;
+  }
+
+  .chart-card,
+  .operation-card,
+  .data-table-card,
+  .activity-card {
+    min-height: auto;
+    padding: 0.9rem;
+    border-radius: 0.95rem;
+  }
+
+  .card-heading {
+    align-items: flex-start;
+    margin-bottom: 0.8rem;
+  }
+
+  .line-visual {
+    min-height: 160px;
+  }
+
+  .line-visual svg {
+    height: 150px;
+  }
+
+  .donut-wrap {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    min-height: auto;
+  }
+
+  .donut-chart {
+    width: 132px;
+    height: 132px;
+  }
+
+  .legend-list {
+    width: 100%;
+  }
+
   .wide-op {
     grid-column: auto;
   }
@@ -1230,8 +1564,77 @@ td {
     grid-template-columns: 1fr;
   }
 
-  .donut-wrap {
-    grid-template-columns: 1fr;
-    justify-items: center;
+  .align-end {
+    align-self: stretch;
+  }
+
+  input,
+  select,
+  button {
+    min-height: 44px;
+  }
+
+  pre {
+    max-height: 220px;
+    font-size: 0.72rem;
+  }
+
+  .table-scroll {
+    margin: 0 -0.2rem;
+    overflow-x: auto;
+  }
+
+  table {
+    min-width: 680px;
+  }
+
+  th,
+  td {
+    padding: 0.75rem 0.65rem;
+    font-size: 0.8rem;
+  }
+
+  .activity-item {
+    padding: 0.7rem;
+  }
+}
+
+@media (max-width: 430px) {
+  .dashboard-content,
+  .topbar {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+
+  .sidebar {
+    padding: 0.7rem;
+  }
+
+  .brand-block {
+    gap: 0.65rem;
+  }
+
+  .topbar {
+    gap: 0.65rem;
+  }
+
+  .network-pill,
+  .wallet-pill {
+    padding-left: 0.6rem;
+    padding-right: 0.6rem;
+  }
+
+  .wallet-pill {
+    max-width: 138px;
+  }
+
+  .profile-panel,
+  .stat-card,
+  .chart-card,
+  .operation-card,
+  .data-table-card,
+  .activity-card,
+  .status-console {
+    box-shadow: 0 8px 20px rgba(16, 24, 40, 0.06);
   }
 }
