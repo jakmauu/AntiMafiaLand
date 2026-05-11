@@ -153,6 +153,285 @@ function ensureWriteContract(res) {
 
 const RISK_LEVEL = ["Low", "Medium", "High"];
 const TRANSFER_STATUS = ["None", "Pending", "Approved", "Frozen"];
+const EVENT_LOOKBACK_BLOCKS = Number(process.env.EVENT_LOOKBACK_BLOCKS ?? 250000);
+const MAX_LAND_SCAN = Number(process.env.MAX_LAND_SCAN ?? 300);
+
+function getNetworkName() {
+  const url = RPC_URL.toLowerCase();
+  if (url.includes("sepolia")) return "Ethereum Sepolia";
+  if (url.includes("mainnet")) return "Ethereum Mainnet";
+  if (url.includes("127.0.0.1") || url.includes("localhost")) return "Local Hardhat";
+  return "Configured RPC";
+}
+
+function normalizeLand(land) {
+  const safe = toSafeJson(land);
+  return {
+    landId: safe[0],
+    owner: safe[1],
+    metadataURI: safe[2],
+    price: safe[3],
+    lastTransferTime: safe[4],
+    exists: safe[5],
+  };
+}
+
+function normalizeTransfer(transfer) {
+  const safe = toSafeJson(transfer);
+  const riskIndex = Number(safe[4] ?? 0);
+  const statusIndex = Number(safe[5] ?? 0);
+  return {
+    from: safe[0],
+    to: safe[1],
+    landId: safe[2],
+    riskScore: safe[3],
+    riskLevel: RISK_LEVEL[riskIndex] ?? "Unknown",
+    status: TRANSFER_STATUS[statusIndex] ?? "Unknown",
+    statusIndex,
+    riskIndex,
+  };
+}
+
+async function getLatestBlock() {
+  try {
+    return await provider.getBlockNumber();
+  } catch {
+    return null;
+  }
+}
+
+function getFromBlock(latestBlock) {
+  if (!latestBlock) return 0;
+  return Math.max(0, latestBlock - EVENT_LOOKBACK_BLOCKS);
+}
+
+const blockTimestampCache = new Map();
+
+async function getBlockIso(blockNumber) {
+  if (!blockNumber) return null;
+  if (blockTimestampCache.has(blockNumber)) return blockTimestampCache.get(blockNumber);
+  try {
+    const block = await provider.getBlock(blockNumber);
+    const iso = block?.timestamp ? new Date(Number(block.timestamp) * 1000).toISOString() : null;
+    blockTimestampCache.set(blockNumber, iso);
+    return iso;
+  } catch {
+    return null;
+  }
+}
+
+async function queryContractEvents(eventName, args = []) {
+  if (!readContract?.filters?.[eventName]) return [];
+  const latestBlock = await getLatestBlock();
+  const fromBlock = getFromBlock(latestBlock);
+  const filter = readContract.filters[eventName](...args);
+  try {
+    return await readContract.queryFilter(filter, fromBlock, latestBlock ?? "latest");
+  } catch {
+    return [];
+  }
+}
+
+async function getTotalRegisteredLands() {
+  if (!readContract) return 0;
+  try {
+    const nextLandId = await readContract.nextLandId();
+    return Math.max(Number(nextLandId) - 1, 0);
+  } catch {
+    return 0;
+  }
+}
+
+async function getLandList(limit = MAX_LAND_SCAN) {
+  if (!readContract) return [];
+  const total = await getTotalRegisteredLands();
+  const upperBound = Math.min(total, limit);
+  const lands = [];
+
+  for (let id = 1; id <= upperBound; id += 1) {
+    try {
+      const land = normalizeLand(await readContract.getLand(BigInt(id)));
+      if (land.exists) lands.push(land);
+    } catch {
+      // Missing or reverted land reads are skipped so one bad ID does not break the dashboard.
+    }
+  }
+
+  return lands;
+}
+
+async function getTransferList(lands) {
+  if (!readContract) return [];
+  const transfers = [];
+
+  for (const land of lands) {
+    try {
+      const transfer = normalizeTransfer(await readContract.getTransferRequest(BigInt(land.landId)));
+      if (transfer.status !== "None") transfers.push(transfer);
+    } catch {
+      // Same defensive behavior as land scans.
+    }
+  }
+
+  return transfers;
+}
+
+async function buildRecentTransactions(limit = 12) {
+  if (!readContract) return [];
+  const eventNames = [
+    "LandRegistered",
+    "TransferRequested",
+    "RiskValidated",
+    "TransferApproved",
+    "TransferExecuted",
+    "TransferFrozen",
+  ];
+  const eventGroups = await Promise.all(eventNames.map((eventName) => queryContractEvents(eventName)));
+  const events = eventGroups.flat().sort((a, b) => Number(b.blockNumber) - Number(a.blockNumber)).slice(0, limit);
+
+  return Promise.all(
+    events.map(async (event) => ({
+      txHash: event.transactionHash,
+      type: event.fragment?.name ?? "Transaction",
+      landId: event.args?.landId?.toString?.() ?? event.args?.[0]?.toString?.() ?? "-",
+      from: event.args?.from ?? event.args?.oldOwner ?? event.args?.owner ?? "-",
+      to: event.args?.to ?? event.args?.newOwner ?? event.args?.approver ?? "-",
+      riskScore: event.args?.riskScore?.toString?.() ?? null,
+      riskLevel:
+        event.args?.riskLevel !== undefined
+          ? RISK_LEVEL[Number(event.args.riskLevel)] ?? "Unknown"
+          : null,
+      status:
+        event.args?.status !== undefined
+          ? TRANSFER_STATUS[Number(event.args.status)] ?? "Unknown"
+          : event.fragment?.name === "TransferFrozen"
+            ? "Frozen"
+            : event.fragment?.name === "TransferExecuted"
+              ? "Completed"
+              : event.fragment?.name === "TransferApproved"
+                ? "Approved"
+                : event.fragment?.name === "TransferRequested"
+                  ? "Pending"
+                  : "Recorded",
+      blockNumber: event.blockNumber,
+      dateTime: await getBlockIso(event.blockNumber),
+    })),
+  );
+}
+
+async function buildTrend() {
+  const events = await queryContractEvents("LandRegistered");
+  const grouped = {};
+  for (const event of events) {
+    const iso = await getBlockIso(event.blockNumber);
+    const key = iso ? iso.slice(0, 10) : `Block ${event.blockNumber}`;
+    grouped[key] = (grouped[key] ?? 0) + 1;
+  }
+  return Object.entries(grouped).map(([label, value]) => ({ label, value }));
+}
+
+function inferRegion(metadataURI = "") {
+  const raw = String(metadataURI).toLowerCase();
+  if (raw.includes("jakarta")) return "Jakarta";
+  if (raw.includes("bandung") || raw.includes("jawa-barat") || raw.includes("west-java")) return "West Java";
+  if (raw.includes("surabaya") || raw.includes("east-java") || raw.includes("jawa-timur")) return "East Java";
+  if (raw.includes("bali")) return "Bali";
+  if (raw.includes("medan") || raw.includes("sumatra")) return "North Sumatra";
+  if (raw.includes("semarang") || raw.includes("central-java") || raw.includes("jawa-tengah")) return "Central Java";
+  return "Unspecified";
+}
+
+function buildTopRegions(lands) {
+  const grouped = {};
+  for (const land of lands) {
+    const region = inferRegion(land.metadataURI);
+    grouped[region] = (grouped[region] ?? 0) + 1;
+  }
+  return Object.entries(grouped)
+    .map(([region, count]) => ({ region, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 8);
+}
+
+async function buildDashboardModel(walletAddress = "") {
+  const [lands, recentTransactions, trend, latestBlock] = await Promise.all([
+    getLandList(),
+    buildRecentTransactions(),
+    buildTrend(),
+    getLatestBlock(),
+  ]);
+  const transfers = await getTransferList(lands);
+  const usersCountRow = pool ? await dbGet("SELECT COUNT(*)::int AS count FROM users") : { count: 0 };
+  const pending = transfers.filter((transfer) => transfer.status === "Pending");
+  const approved = transfers.filter((transfer) => transfer.status === "Approved");
+  const frozen = transfers.filter((transfer) => transfer.status === "Frozen");
+  const riskDistribution = RISK_LEVEL.map((riskLevel) => ({
+    riskLevel,
+    count: transfers.filter((transfer) => transfer.riskLevel === riskLevel).length,
+  }));
+  const verificationSummary = TRANSFER_STATUS.map((status) => ({
+    status,
+    count: status === "None" ? 0 : transfers.filter((transfer) => transfer.status === status).length,
+  }));
+  const normalizedWallet = walletAddress.toLowerCase();
+  const userLands = normalizedWallet
+    ? lands.filter((land) => String(land.owner).toLowerCase() === normalizedWallet)
+    : [];
+  const userTransfers = normalizedWallet
+    ? transfers.filter(
+        (transfer) =>
+          String(transfer.from).toLowerCase() === normalizedWallet ||
+          String(transfer.to).toLowerCase() === normalizedWallet,
+      )
+    : [];
+
+  return {
+    network: {
+      name: getNetworkName(),
+      rpcUrl: RPC_URL,
+      latestBlock,
+      contractAddress: CONTRACT_ADDRESS,
+      smartContractStatus: readContract ? "Active" : "Unavailable",
+      adminWalletAddress: signer?.address ?? null,
+    },
+    admin: {
+      summary: {
+        totalRegisteredLands: lands.length,
+        pendingVerification: pending.length,
+        approvedCertificates: approved.length,
+        suspiciousTransactions: frozen.length + transfers.filter((transfer) => transfer.riskLevel === "High").length,
+        totalUsers: Number(usersCountRow?.count ?? 0),
+        smartContractStatus: readContract ? "Active" : "Unavailable",
+      },
+      recentTransactions,
+      verificationSummary,
+      riskDistribution,
+      topRegions: buildTopRegions(lands),
+      landRegistrationTrend: trend,
+      lands,
+      transfers,
+    },
+    user: {
+      summary: {
+        myLands: userLands.length,
+        pendingRequests: userTransfers.filter((transfer) => transfer.status === "Pending").length,
+        approvedCertificates: userTransfers.filter((transfer) => transfer.status === "Approved").length + userLands.length,
+        rejectedRequests: userTransfers.filter((transfer) => transfer.status === "Frozen").length,
+        transactionHistory: userTransfers.length,
+        riskScore: userTransfers[0]?.riskScore ?? "0",
+        walletAddress,
+        verificationStatus: userLands.length > 0 ? "Verified Owner" : "No registered land",
+      },
+      recentActivity: recentTransactions.filter(
+        (tx) =>
+          String(tx.from).toLowerCase() === normalizedWallet ||
+          String(tx.to).toLowerCase() === normalizedWallet,
+      ),
+      ownedLands: userLands,
+      transfers: userTransfers,
+    },
+  };
+}
 
 app.get("/", (_req, res) => {
   res.json({ ok: true, message: "TerraChain backend running" });
@@ -212,6 +491,7 @@ app.post("/auth/login", async (req, res) => {
         fullName: user.full_name,
         email: user.email,
         role: user.role,
+        createdAt: user.created_at,
       },
     });
   } catch (error) {
@@ -234,11 +514,145 @@ app.get("/health", async (_req, res) => {
   res.json({
     ok: true,
     rpcUrl: RPC_URL,
+    networkName: getNetworkName(),
     hasContractAddress: Boolean(CONTRACT_ADDRESS),
     hasAdminPrivateKey: Boolean(ADMIN_PRIVATE_KEY),
     hasDatabaseUrl: Boolean(DATABASE_URL),
     latestBlock,
   });
+});
+
+app.get("/admin/dashboard-summary", async (_req, res) => {
+  try {
+    const data = await buildDashboardModel();
+    res.json({
+      ...data.admin,
+      network: data.network,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get("/user/dashboard-summary", async (req, res) => {
+  try {
+    const wallet = String(req.query.wallet ?? "");
+    const data = await buildDashboardModel(wallet);
+    res.json({
+      ...data.user,
+      network: data.network,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get("/admin/users", async (_req, res) => {
+  try {
+    const result = await dbRun(
+      "SELECT id, full_name, email, role, created_at FROM users ORDER BY created_at DESC",
+    );
+    res.json({
+      users: result.rows.map((user) => ({
+        id: user.id,
+        fullName: user.full_name,
+        email: user.email,
+        role: user.role,
+        walletAddress: null,
+        status: "Active",
+        createdAt: user.created_at,
+      })),
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get("/admin/pending-verifications", async (_req, res) => {
+  try {
+    const lands = await getLandList();
+    const transfers = await getTransferList(lands);
+    res.json({ verifications: transfers.filter((transfer) => transfer.status === "Pending") });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get("/lands", async (req, res) => {
+  try {
+    const wallet = String(req.query.wallet ?? "").toLowerCase();
+    const lands = await getLandList();
+    res.json({
+      lands: wallet ? lands.filter((land) => String(land.owner).toLowerCase() === wallet) : lands,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get("/transactions", async (req, res) => {
+  try {
+    const wallet = String(req.query.wallet ?? "").toLowerCase();
+    const transactions = await buildRecentTransactions(50);
+    res.json({
+      transactions: wallet
+        ? transactions.filter(
+            (tx) =>
+              String(tx.from).toLowerCase() === wallet ||
+              String(tx.to).toLowerCase() === wallet,
+          )
+        : transactions,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get("/analytics/land-registration-trend", async (_req, res) => {
+  try {
+    res.json({ trend: await buildTrend() });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get("/analytics/verification-summary", async (_req, res) => {
+  try {
+    const lands = await getLandList();
+    const transfers = await getTransferList(lands);
+    res.json({
+      summary: TRANSFER_STATUS.map((status) => ({
+        status,
+        count: status === "None" ? 0 : transfers.filter((transfer) => transfer.status === status).length,
+      })),
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get("/analytics/risk-distribution", async (_req, res) => {
+  try {
+    const lands = await getLandList();
+    const transfers = await getTransferList(lands);
+    res.json({
+      distribution: RISK_LEVEL.map((riskLevel) => ({
+        riskLevel,
+        count: transfers.filter((transfer) => transfer.riskLevel === riskLevel).length,
+      })),
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get("/analytics/top-regions", async (_req, res) => {
+  try {
+    const lands = await getLandList();
+    res.json({ regions: buildTopRegions(lands) });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 app.get("/lands/:landId", async (req, res) => {
